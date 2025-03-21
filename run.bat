@@ -1,0 +1,1 @@
+nodemon --exec "go build && evercliping" --ext go,html

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>EverCliping 使用教程 | Guide</title>
+</head>
+
+<body>
+    <h1>EverCliping 使用教程 | Guide</h1>
+    <h3>程序运行信息(Info)</h3>
+    <p>当前路径(Run as)：{{ .ExecPath }}</p>
+    <p>开机自启状态(AutoRun Status)：{{ .IsAutoRun }}</p>
+    <hr />
+    <h3>使用说明(Manual)</h3>
+    <ol>
+        <li>使用iPhone自带摄像头扫描以下二维码，安装快捷指令(Scan and install shortcut)</li><br />
+        <li>编辑快捷指令，填写表单(Edit form)</li>
+        <table border="1" cellpadding="5">
+            <tr>
+                <td>HOST</td>
+                <td><b>{{ .HostName }}.local</b>或者<b>{{ .LocalIP }}</b></td>
+            </tr>
+            <tr>
+                <td>PORT</td>
+                <td><b>{{ .Port }}</b></td>
+            </tr>
+            <tr>
+                <td>PASSWORD</td>
+                <td><b>{{ .Password }}</b></td>
+            </tr>
+        </table>
+    </ol>
+    <hr />
+    <h3>高级配置(Settings)</h3>
+    <details>
+        <summary>
+            Click to expand
+        </summary>
+        <form onsubmit="handleSubmit(event)">
+            <label for="port">CHANGE PORT:</label>
+            <input type="text" id="port" name="port" value="{{ .Port }}"><br><br>
+            <label for="password">CHANGE PASSWORD:</label>
+            <input type="text" id="password" name="password" value="{{ .Password }}"><br><br>
+            <input type="submit" value="Submit">
+        </form>
+    </details>
+    <script>
+        function handleSubmit(event) {
+            event.preventDefault()
+            const formData = new FormData(event.target)
+            fetch('/settings', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => {
+                    if (response.ok) {
+                        alert('Saved!')
+                        const newPort = formData.get('port')
+                        window.location.href = `${window.location.protocol}//${window.location.hostname}:${newPort}`
+                    } else {
+                        response.json().then(data => {
+                            alert(data.error || 'Unable to save settings')
+                        })
+                    }
+                })
+                .catch(error => {
+                    console.error(error)
+                    alert("Unable to save settings")
+                })
+        }
+    </script>
+</body>
+
+</html>

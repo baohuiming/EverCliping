@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -80,10 +81,19 @@ func ReadBase64FromFile(path string) (string, error) {
 }
 
 func Restart(port, password string) {
-	exePath := os.Args[0]
+	execPath := os.Args[0]
+
+	isAutoRun, err := QueryAutoRun()
+	if err != nil {
+		log.Println("[Warn] Unable to query AutoRun status:", err)
+	}
+	if isAutoRun {
+		EnableAutoRun(fmt.Sprintf("%s -port %s -password %s", execPath, port, password))
+	}
+
 	args := []string{"-port", port, "-password", password}
 
-	cmd := exec.Command(exePath, args...)
+	cmd := exec.Command(execPath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin

@@ -2,13 +2,14 @@ package main
 
 import (
 	"os"
+	"strings"
 
 	"golang.org/x/sys/windows/registry"
 )
 
 const REG_KEY = "EverCliping"
 
-var EXEC_PATH = os.Args[0]
+var REG_VALUE = strings.Join(os.Args, " ")
 
 func openAutoRunKey(access uint32) (registry.Key, error) {
 	autorunKey := `SOFTWARE\Microsoft\Windows\CurrentVersion\Run`
@@ -32,19 +33,19 @@ func QueryAutoRun() (bool, error) {
 		}
 		return false, err
 	}
-	if val == EXEC_PATH {
+	if val == REG_VALUE {
 		return true, nil
 	}
 	return false, nil
 }
 
-func EnableAutoRun() error {
+func EnableAutoRun(value string) error {
 	key, err := openAutoRunKey(registry.SET_VALUE)
 	if err != nil {
 		return err
 	}
 	defer key.Close()
-	return key.SetStringValue(REG_KEY, EXEC_PATH)
+	return key.SetStringValue(REG_KEY, value)
 }
 
 func DisableAutoRun() error {

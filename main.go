@@ -52,7 +52,7 @@ func OnReady() {
 					}
 					mAutorun.Uncheck()
 				} else {
-					err := EnableAutoRun()
+					err := EnableAutoRun(REG_VALUE)
 					if err != nil {
 						log.Println("[Warn] Unable to enable AutoRun:", err)
 						continue

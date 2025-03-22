@@ -1,1 +1,1 @@
-nodemon --exec "go build && evercliping" --ext go,html
+nodemon --exec "go run ." --ext go,html

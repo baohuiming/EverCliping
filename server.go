@@ -80,7 +80,7 @@ func guideHandler(c *gin.Context) {
 	hostname, _ := os.Hostname()
 
 	c.HTML(http.StatusOK, "guide", guideTemplateParams{
-		ExecPath:  EXEC_PATH,
+		ExecPath:  os.Args[0],
 		IsAutoRun: isAutoRunText,
 		HostName:  hostname,
 		LocalIP:   GetLocalIP(),

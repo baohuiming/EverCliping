@@ -1,24 +1,19 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/base64"
 	"fmt"
 	"html/template"
-	"image/png"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/image/bmp"
 )
 
 type guideTemplateParams struct {
@@ -37,6 +32,34 @@ type ResponseFile struct {
 
 type ResponseFiles []ResponseFile
 
+func StartHTTPServer(ctx context.Context, port int) error {
+	// gin.SetMode(gin.ReleaseMode)
+	router := setupRouter()
+
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: router,
+	}
+
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("Server forced to shutdown: %v", err)
+		}
+	}()
+
+	log.Printf("Server starting on http://localhost:%d", port)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return fmt.Errorf("server failed to start: %v", err)
+	}
+
+	log.Printf("HTTP server shutting down.")
+	return nil
+}
+
 func clientName() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		urlEncodedClientName := c.GetHeader("X-Client-Name")
@@ -49,10 +72,29 @@ func clientName() gin.HandlerFunc {
 	}
 }
 
+func auth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		if Password == "" {
+			c.Next()
+			return
+		}
+
+		reqAuth := c.GetHeader("X-Password")
+
+		if Password == reqAuth {
+			c.Next()
+			return
+		}
+
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"error": "wrong password",
+		})
+	}
+}
+
 func setupRouter() *gin.Engine {
 	router := gin.Default()
-
-	router.Use(clientName())
 
 	tmpl := template.Must(template.New("guide").Parse(GuideTemplate))
 	router.SetHTMLTemplate(tmpl)
@@ -62,7 +104,9 @@ func setupRouter() *gin.Engine {
 	})
 
 	router.GET("/", guideHandler)
+	router.Use(clientName(), auth())
 	router.GET("/get", getHandler)
+	// router.POST("/set", setHandler)
 	router.POST("/settings", settingsHandler)
 
 	return router
@@ -105,122 +149,30 @@ func settingsHandler(c *gin.Context) {
 }
 
 func getHandler(c *gin.Context) {
-	contentType, err := Clipboard().ContentType()
-	if err != nil {
-		log.Println("failed to get content type of clipboard")
-		c.Status(http.StatusBadRequest)
-		return
-	}
-
-	if contentType == TypeText {
-		str, err := Clipboard().Text()
-		if err != nil {
-			c.Status(http.StatusBadRequest)
-			log.Println("[Warn] failed to get clipboard")
-			return
-		}
+	if ClipboardLatest == TypeText {
 		log.Println("get clipboard text")
 		c.JSON(http.StatusOK, gin.H{
-			"type": "text",
-			"data": str,
+			"type": TypeText,
+			"data": *ClipboardText,
 		})
-		defer SendNotification(fmt.Sprintf("To  [%s]", c.GetString("clientName")), str)
+		defer SendNotification(fmt.Sprintf("To [%s]", c.GetString("clientName")), *ClipboardText)
 		return
 	}
 
-	if contentType == TypeBitmap {
-		bmpBytes, err := Clipboard().Bitmap()
-		if err != nil {
-			log.Println("failed to get bmp bytes from clipboard")
-		}
-
-		bmpBytesReader := bytes.NewReader(bmpBytes)
-		bmpImage, err := bmp.Decode(bmpBytesReader)
-		if err != nil {
-			log.Println("failed to decode bmp")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "unable to get clipboard content"})
-			return
-		}
-		pngBytesBuffer := new(bytes.Buffer)
-		if err = png.Encode(pngBytesBuffer, bmpImage); err != nil {
-			log.Println("failed to encode bmp as png")
-		}
-
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "unable to get clipboard content"})
-			return
-		}
-
+	if ClipboardLatest == TypeImage {
 		responseFiles := make([]ResponseFile, 0, 1)
 		responseFiles = append(responseFiles, ResponseFile{
 			"clipboard.png",
-			base64.StdEncoding.EncodeToString(pngBytesBuffer.Bytes()),
+			base64.StdEncoding.EncodeToString(*ClipboardImage),
 		})
 
 		c.JSON(http.StatusOK, gin.H{
-			"type": "file",
+			"type": TypeImage,
 			"data": responseFiles,
 		})
-		defer SendNotification(fmt.Sprintf("To  [%s]", c.GetString("clientName")), "[Image]")
-		return
-	}
-
-	if contentType == TypeFile {
-		// get path of files from clipboard
-		filenames, err := Clipboard().Files()
-		if err != nil {
-			log.Println("failed to get path of files from clipboard")
-			c.Status(http.StatusBadRequest)
-			return
-		}
-
-		responseFiles := make([]ResponseFile, 0, len(filenames))
-		for _, path := range filenames {
-			base64, err := ReadBase64FromFile(path)
-			if err != nil {
-				log.Println("read base64 from file failed")
-				continue
-			}
-			responseFiles = append(responseFiles, ResponseFile{filepath.Base(path), base64})
-		}
-		log.Println("get clipboard files")
-
-		c.JSON(http.StatusOK, gin.H{
-			"type": "file",
-			"data": responseFiles,
-		})
-
-		defer SendNotification(fmt.Sprintf("To  [%s]", c.GetString("clientName")), fmt.Sprintf("Files[%s]", strings.Join(filenames, ", ")))
+		defer SendNotification(fmt.Sprintf("To [%s]", c.GetString("clientName")), "[Image]")
 		return
 	}
 
 	c.JSON(http.StatusBadRequest, gin.H{"error": "unknown content type"})
-}
-
-func StartHTTPServer(ctx context.Context, port int) error {
-	// gin.SetMode(gin.ReleaseMode)
-	router := setupRouter()
-
-	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
-		Handler: router,
-	}
-
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			log.Printf("Server forced to shutdown: %v", err)
-		}
-	}()
-
-	log.Printf("Server starting on http://localhost:%d", port)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("server failed to start: %v", err)
-	}
-
-	log.Printf("HTTP server shutting down.")
-	return nil
 }

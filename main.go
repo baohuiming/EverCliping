@@ -5,31 +5,19 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/getlantern/systray"
-	"golang.org/x/sync/errgroup"
 )
 
-var Port int
-var Password string
+var (
+	wg            sync.WaitGroup
+	Port          int
+	Password      string
+	RemoteVersion string
+)
 
-func OnReady() {
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
-
-	// TODO: mDNS support
-	// g.Go(func() error {
-	// 	return StartMDNSServer(ctx, Port)
-	// })
-
-	g.Go(func() error {
-		return StartHTTPServer(ctx, Port)
-	})
-
-	Clipboard().ContentsChanged().Attach(func() {
-		log.Println("Clipboard Changed")
-	})
-
+func setupTray(cancel context.CancelFunc) {
 	systray.SetIcon(IconData)
 	systray.SetTitle("EverCliping")
 	systray.SetTooltip("EverCliping")
@@ -70,14 +58,39 @@ func OnReady() {
 			}
 		}
 	}()
+}
+
+func OnReady() {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	ClipboardInit()
+
+	// TODO: mDNS support
+	// go func() {
+	// 	defer wg.Done()
+	// 	wg.Add(1)
+	// 	StartMDNSServer(ctx, Port)
+	// }()
 
 	go func() {
-		if err := g.Wait(); err != nil {
-			log.Printf("Error: %v\n", err)
-		}
-		cancel()
-		systray.Quit()
+		defer wg.Done()
+		wg.Add(1)
+		StartHTTPServer(ctx, Port)
 	}()
+
+	go func() {
+		defer wg.Done()
+		wg.Add(1)
+		WatchText(ctx)
+	}()
+
+	go func() {
+		defer wg.Done()
+		wg.Add(1)
+		WatchImage(ctx)
+	}()
+
+	setupTray(cancel)
 }
 
 func OnExit() {

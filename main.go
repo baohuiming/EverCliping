@@ -17,12 +17,17 @@ func OnReady() {
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
 
-	g.Go(func() error {
-		return StartMDNSServer(ctx, Port)
-	})
+	// TODO: mDNS support
+	// g.Go(func() error {
+	// 	return StartMDNSServer(ctx, Port)
+	// })
 
 	g.Go(func() error {
 		return StartHTTPServer(ctx, Port)
+	})
+
+	Clipboard().ContentsChanged().Attach(func() {
+		log.Println("Clipboard Changed")
 	})
 
 	systray.SetIcon(IconData)
@@ -52,7 +57,7 @@ func OnReady() {
 					}
 					mAutorun.Uncheck()
 				} else {
-					err := EnableAutoRun(REG_VALUE)
+					err := EnableAutoRun()
 					if err != nil {
 						log.Println("[Warn] Unable to enable AutoRun:", err)
 						continue

@@ -88,7 +88,8 @@ func Restart(port, password string) {
 		log.Println("[Warn] Unable to query AutoRun status:", err)
 	}
 	if isAutoRun {
-		EnableAutoRun(fmt.Sprintf("%s -port %s -password %s", execPath, port, password))
+		AutoRunConfig.ExecutablePath = fmt.Sprintf("%s -port %s -password %s", execPath, port, password)
+		EnableAutoRun()
 	}
 
 	args := []string{"-port", port, "-password", password}

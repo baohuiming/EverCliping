@@ -25,13 +25,6 @@ type guideTemplateParams struct {
 	Password  string
 }
 
-type ResponseFile struct {
-	Name    string `json:"name"`
-	Content string `json:"content"`
-}
-
-type ResponseFiles []ResponseFile
-
 func StartHTTPServer(ctx context.Context, port int) error {
 	// gin.SetMode(gin.ReleaseMode)
 	router := setupRouter()
@@ -106,7 +99,7 @@ func setupRouter() *gin.Engine {
 	router.GET("/", guideHandler)
 	router.Use(clientName(), auth())
 	router.GET("/get", getHandler)
-	// router.POST("/set", setHandler)
+	router.POST("/set", setHandler)
 	router.POST("/settings", settingsHandler)
 
 	return router
@@ -160,19 +153,71 @@ func getHandler(c *gin.Context) {
 	}
 
 	if ClipboardLatest == TypeImage {
-		responseFiles := make([]ResponseFile, 0, 1)
-		responseFiles = append(responseFiles, ResponseFile{
-			"clipboard.png",
-			base64.StdEncoding.EncodeToString(*ClipboardImage),
-		})
-
 		c.JSON(http.StatusOK, gin.H{
 			"type": TypeImage,
-			"data": responseFiles,
+			"data": base64.StdEncoding.EncodeToString(*ClipboardImage),
 		})
 		defer SendNotification(fmt.Sprintf("To [%s]", c.GetString("clientName")), "[Image]")
 		return
 	}
 
 	c.JSON(http.StatusBadRequest, gin.H{"error": "unknown content type"})
+}
+
+type ReqBody struct {
+	Data string `json:"data"`
+}
+
+func setHandler(c *gin.Context) {
+	contentType := c.GetHeader("X-Content-Type")
+	if contentType == TypeText {
+		setTextHandler(c)
+		return
+	} else if contentType == TypeImage {
+		setImageHandler(c)
+		return
+	}
+
+	c.JSON(http.StatusBadRequest, gin.H{"error": "unknown content type"})
+}
+
+func setTextHandler(c *gin.Context) {
+	var body ReqBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		log.Println("failed to bind text body")
+		c.Status(http.StatusBadRequest)
+		return
+	}
+
+	SetClipboardText(body.Data)
+
+	var notify string = "<empty>"
+	if body.Data != "" {
+		notify = body.Data
+	}
+	defer SendNotification(fmt.Sprintf("From [%s]", c.GetString("clientName")), notify)
+	log.Println("set clipboard text")
+	c.Status(http.StatusOK)
+}
+
+func setImageHandler(c *gin.Context) {
+	var body ReqBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		log.Println("failed to bind image body")
+		c.Status(http.StatusBadRequest)
+		return
+	}
+
+	imgBytes, err := base64.StdEncoding.DecodeString(body.Data)
+	if err != nil {
+		log.Println("failed to decode base64 image")
+		c.Status(http.StatusBadRequest)
+		return
+	}
+
+	SetClipboardImage(imgBytes)
+
+	defer SendNotification(fmt.Sprintf("From [%s]", c.GetString("clientName")), "[Image]")
+	log.Println("set clipboard image")
+	c.Status(http.StatusOK)
 }

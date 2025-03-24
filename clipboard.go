@@ -46,3 +46,11 @@ func WatchImage(ctx context.Context) {
 		ClipboardLatest = TypeImage
 	}
 }
+
+func SetClipboardText(text string) {
+	clipboard.Write(clipboard.FmtText, []byte(text))
+}
+
+func SetClipboardImage(data []byte) {
+	clipboard.Write(clipboard.FmtImage, data)
+}

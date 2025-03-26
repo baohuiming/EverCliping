@@ -11,10 +11,9 @@ import (
 )
 
 var (
-	wg            sync.WaitGroup
-	Port          int
-	Password      string
-	RemoteVersion string
+	wg       sync.WaitGroup
+	Port     int
+	Password string
 )
 
 func setupTray(cancel context.CancelFunc) {

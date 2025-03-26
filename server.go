@@ -101,6 +101,7 @@ func setupRouter() *gin.Engine {
 	router.GET("/get", getHandler)
 	router.POST("/set", setHandler)
 	router.POST("/settings", settingsHandler)
+	router.GET("/poll", pollHandler)
 
 	return router
 }
@@ -145,8 +146,9 @@ func getHandler(c *gin.Context) {
 	if ClipboardLatest == TypeText {
 		log.Println("get clipboard text")
 		c.JSON(http.StatusOK, gin.H{
-			"type": TypeText,
-			"data": *ClipboardText,
+			"type":    TypeText,
+			"data":    *ClipboardText,
+			"version": ClipboardLocalVersion,
 		})
 		defer SendNotification(fmt.Sprintf("To [%s]", c.GetString("clientName")), *ClipboardText)
 		return
@@ -154,8 +156,9 @@ func getHandler(c *gin.Context) {
 
 	if ClipboardLatest == TypeImage {
 		c.JSON(http.StatusOK, gin.H{
-			"type": TypeImage,
-			"data": base64.StdEncoding.EncodeToString(*ClipboardImage),
+			"type":    TypeImage,
+			"data":    base64.StdEncoding.EncodeToString(*ClipboardImage),
+			"version": ClipboardLocalVersion,
 		})
 		defer SendNotification(fmt.Sprintf("To [%s]", c.GetString("clientName")), "[Image]")
 		return
@@ -170,15 +173,33 @@ type ReqBody struct {
 
 func setHandler(c *gin.Context) {
 	contentType := c.GetHeader("X-Content-Type")
-	if contentType == TypeText {
-		setTextHandler(c)
-		return
-	} else if contentType == TypeImage {
-		setImageHandler(c)
+	remoteVersion := c.GetHeader("X-Version")
+
+	log.Println("remote version:", remoteVersion)
+
+	if remoteVersion == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing version"})
 		return
 	}
 
-	c.JSON(http.StatusBadRequest, gin.H{"error": "unknown content type"})
+	version, err := strconv.ParseInt(remoteVersion, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid version"})
+		return
+	}
+
+	log.Println("convert version:", version)
+
+	setClipboardVersion(version)
+
+	if contentType == TypeText {
+		setTextHandler(c)
+	} else if contentType == TypeImage {
+		setImageHandler(c)
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown content type"})
+		return
+	}
 }
 
 func setTextHandler(c *gin.Context) {
@@ -202,6 +223,7 @@ func setTextHandler(c *gin.Context) {
 
 func setImageHandler(c *gin.Context) {
 	var body ReqBody
+
 	if err := c.ShouldBindJSON(&body); err != nil {
 		log.Println("failed to bind image body")
 		c.Status(http.StatusBadRequest)
@@ -220,4 +242,32 @@ func setImageHandler(c *gin.Context) {
 	defer SendNotification(fmt.Sprintf("From [%s]", c.GetString("clientName")), "[Image]")
 	log.Println("set clipboard image")
 	c.Status(http.StatusOK)
+}
+
+func pollHandler(c *gin.Context) {
+	reqVersion := c.GetHeader("X-Version")
+
+	if reqVersion == "" {
+		reqVersion = "-1"
+	}
+
+	remoteVersion, err := strconv.ParseInt(reqVersion, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid version"})
+		return
+	}
+
+	if remoteVersion == ClipboardLocalVersion {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		return
+	} else if remoteVersion < ClipboardLocalVersion {
+		// from PC to phone
+		log.Println("from PC to phone")
+		getHandler(c)
+		return
+	} else {
+		// from phone to PC
+		log.Println("from phone to PC")
+		c.JSON(http.StatusOK, gin.H{"status": "conflict"})
+	}
 }

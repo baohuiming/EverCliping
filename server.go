@@ -175,8 +175,6 @@ func setHandler(c *gin.Context) {
 	contentType := c.GetHeader("X-Content-Type")
 	remoteVersion := c.GetHeader("X-Version")
 
-	log.Println("remote version:", remoteVersion)
-
 	if remoteVersion == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing version"})
 		return
@@ -187,8 +185,6 @@ func setHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid version"})
 		return
 	}
-
-	log.Println("convert version:", version)
 
 	setClipboardVersion(version)
 

@@ -66,6 +66,9 @@ func OpenBrowser(url string) error {
 }
 
 func SendNotification(title, message string) {
+	if Notify == 0 {
+		return
+	}
 	err := beeep.Notify(title, message, "")
 	if err != nil {
 		log.Println("failed to send notification:", err)
@@ -80,7 +83,7 @@ func ReadBase64FromFile(path string) (string, error) {
 	return base64.StdEncoding.EncodeToString(fileBytes), nil
 }
 
-func Restart(port, password string) {
+func Restart(port, password string, notify int) {
 	execPath := os.Args[0]
 
 	isAutoRun, err := QueryAutoRun()
@@ -88,11 +91,11 @@ func Restart(port, password string) {
 		log.Println("[Warn] Unable to query AutoRun status:", err)
 	}
 	if isAutoRun {
-		AutoRunConfig.ExecutablePath = fmt.Sprintf("%s -port %s -password %s", execPath, port, password)
+		AutoRunConfig.ExecutablePath = fmt.Sprintf("%s -port %s -password %s -notify %d", execPath, port, password, notify)
 		EnableAutoRun()
 	}
 
-	args := []string{"-port", port, "-password", password}
+	args := []string{"-port", port, "-password", password, "-notify", fmt.Sprintf("%d", notify)}
 
 	cmd := exec.Command(execPath, args...)
 	cmd.Stdout = os.Stdout

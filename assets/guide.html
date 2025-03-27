@@ -45,6 +45,8 @@
             <input type="text" id="port" name="port" value="{{ .Port }}"><br><br>
             <label for="password">CHANGE PASSWORD:</label>
             <input type="text" id="password" name="password" value="{{ .Password }}"><br><br>
+            <label for="notify">NOTIFY:</label>
+            <input type="checkbox" id="notify" name="notify" {{ .Notify }}><br><br>
             <input type="submit" value="Submit">
         </form>
     </details>

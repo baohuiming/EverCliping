@@ -14,6 +14,7 @@ var (
 	wg       sync.WaitGroup
 	Port     int
 	Password string
+	Notify   int
 )
 
 func setupTray(cancel context.CancelFunc) {
@@ -99,7 +100,9 @@ func OnExit() {
 func main() {
 	flag.IntVar(&Port, "port", 9273, "HTTP Server Port")
 	flag.StringVar(&Password, "password", "", "Password")
+	flag.IntVar(&Notify, "notify", 1, "Notify")
 	flag.Parse()
+	log.Println("Port:", Port, "Password:", Password, "Notify:", Notify)
 
 	systray.Run(OnReady, OnExit)
 }

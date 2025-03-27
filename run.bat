@@ -1,1 +1,1 @@
-nodemon --exec "go run . -password 1" --ext go,html
+nodemon --exec "go run . -password 1 -notify 0" --ext go,html

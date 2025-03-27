@@ -23,6 +23,7 @@ type guideTemplateParams struct {
 	LocalIP   string
 	Port      string
 	Password  string
+	Notify    string
 }
 
 func StartHTTPServer(ctx context.Context, port int) error {
@@ -117,6 +118,11 @@ func guideHandler(c *gin.Context) {
 
 	hostname, _ := os.Hostname()
 
+	notify := ""
+	if Notify != 0 {
+		notify = "checked"
+	}
+
 	c.HTML(http.StatusOK, "guide", guideTemplateParams{
 		ExecPath:  os.Args[0],
 		IsAutoRun: isAutoRunText,
@@ -124,6 +130,7 @@ func guideHandler(c *gin.Context) {
 		LocalIP:   GetLocalIP(),
 		Port:      fmt.Sprintf("%d", Port),
 		Password:  Password,
+		Notify:    notify,
 	})
 }
 
@@ -139,7 +146,14 @@ func settingsHandler(c *gin.Context) {
 		port = fmt.Sprintf("%d", Port)
 	}
 	password := c.PostForm("password")
-	go Restart(port, password)
+	log.Println("[!]Notify:", c.PostForm("notify"))
+
+	notify := 0
+	if c.PostForm("notify") == "on" {
+		notify = 1
+	}
+
+	go Restart(port, password, notify)
 }
 
 func getHandler(c *gin.Context) {

@@ -17,14 +17,19 @@ import (
 )
 
 type guideTemplateParams struct {
-	ExecPath  string
-	IsAutoRun string
-	HostName  string
-	LocalIP   string
-	Port      string
-	Password  string
-	Notify    string
+	ExecPath         string
+	IsAutoRun        string
+	HostName         string
+	LocalIP          string
+	Port             string
+	Password         string
+	Notify           string
+	ConnectedDevices string
 }
+
+// Store the device's last poll timestamp
+var DeviceStates = make(map[string]TimeStamp)
+var DeviceAlive = 120 * time.Second
 
 func StartHTTPServer(ctx context.Context, port int) error {
 	// gin.SetMode(gin.ReleaseMode)
@@ -59,7 +64,7 @@ func clientName() gin.HandlerFunc {
 		urlEncodedClientName := c.GetHeader("X-Client-Name")
 		clientName, err := url.PathUnescape(urlEncodedClientName)
 		if err != nil || clientName == "" {
-			clientName = "unknown"
+			clientName = "<Unknown Device>"
 		}
 		c.Set("clientName", clientName)
 		c.Next()
@@ -96,6 +101,9 @@ func setupRouter() *gin.Engine {
 	router.GET("/favicon.ico", func(c *gin.Context) {
 		c.Data(http.StatusOK, "image/x-icon", IconData)
 	})
+	router.GET("/shortcuts.png", func(c *gin.Context) {
+		c.Data(http.StatusOK, "image/png", ShortcutsData)
+	})
 
 	router.GET("/", guideHandler)
 	router.Use(clientName(), auth())
@@ -131,6 +139,13 @@ func guideHandler(c *gin.Context) {
 		Port:      fmt.Sprintf("%d", Port),
 		Password:  Password,
 		Notify:    notify,
+		ConnectedDevices: func() string {
+			var devices string
+			for device, timestamp := range DeviceStates {
+				devices += fmt.Sprintf("%s(%s), ", device, time.Unix(timestamp, 0).Format("2006/01/02 15:04:05"))
+			}
+			return devices
+		}(),
 	})
 }
 
@@ -256,9 +271,21 @@ func setImageHandler(c *gin.Context) {
 
 func pollHandler(c *gin.Context) {
 	reqVersion := c.GetHeader("X-Version")
+	client := c.GetString("clientName")
+
+	defer func() {
+		DeviceStates[client] = TimeStamp(time.Now().Unix())
+	}()
+
+	lastPoll, ok := DeviceStates[client]
+	isFirstPoll := false
+	if !ok || time.Since(time.Unix(lastPoll, 0)) > DeviceAlive { // new device
+		isFirstPoll = true
+	}
 
 	if reqVersion == "" {
-		reqVersion = "-1"
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing version"})
+		return
 	}
 
 	remoteVersion, err := strconv.ParseInt(reqVersion, 10, 64)
@@ -272,12 +299,18 @@ func pollHandler(c *gin.Context) {
 		return
 	} else if remoteVersion < ClipboardLocalVersion {
 		// from PC to phone
-		log.Println("from PC to phone")
+		log.Println("from PC to phone: ", remoteVersion, "<", ClipboardLocalVersion)
 		getHandler(c)
 		return
 	} else {
 		// from phone to PC
-		log.Println("from phone to PC")
+		if isFirstPoll {
+			setClipboardVersion(remoteVersion)
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+			return
+		}
+		log.Println("from phone to PC: ", remoteVersion, ">", ClipboardLocalVersion)
+
 		c.JSON(http.StatusOK, gin.H{"status": "conflict"})
 	}
 }

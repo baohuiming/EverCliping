@@ -9,6 +9,8 @@ import (
 	"golang.design/x/clipboard"
 )
 
+type TimeStamp = int64
+
 const (
 	TypeText  = "text"
 	TypeImage = "image"
@@ -17,13 +19,13 @@ const (
 var (
 	ClipboardText         *string
 	ClipboardImage        *[]byte
-	ClipboardLatest       string = "" // text or image
-	ClipboardLocalVersion int64  = -1 // timestamp
+	ClipboardLatest       string    = "" // text or image
+	ClipboardLocalVersion TimeStamp = 0  // timestamp
 	ClipboardMu           sync.Mutex
 	clipboardWatching     bool = true // close clipboard watching when set
 )
 
-func setClipboardVersion(version int64) {
+func setClipboardVersion(version TimeStamp) {
 	if version == 0 {
 		ClipboardLocalVersion = time.Now().Unix()
 	} else {

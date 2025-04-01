@@ -1,0 +1,39 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build executable
+        shell: cmd
+        run: |
+          rsrc -manifest EverCliping.manifest -ico ./assets/icon.ico -o EverCliping.syso
+          go build -v -a -ldflags "-s -w -H windowsgui" -gcflags="all=-trimpath=${PWD}" -asmflags="all=-trimpath=${PWD}" .
+
+      - name: Set version
+        shell: cmd
+        run: |
+              VERSION=${GITHUB_REF#refs/tags/v}
+              echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.RELEASE_VERSION }}
+          files: EverCliping.exe
+          generate_release_notes: false

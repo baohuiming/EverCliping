@@ -17,6 +17,10 @@ jobs:
         with:
           go-version: '1.24'
 
+      - name: Install RSRC
+        shell: cmd
+        run: go get github.com/akavel/rsrc
+
       - name: Build executable
         shell: cmd
         run: |
@@ -26,7 +30,7 @@ jobs:
       - name: Set version
         shell: cmd
         run: |
-              VERSION=${GITHUB_REF#refs/tags/v}
+              set VERSION=${GITHUB_REF#refs/tags/}
               echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Upload Release

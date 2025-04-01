@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      GOPATH: ${{ github.workspace }}\go
 
     steps:
       - uses: actions/checkout@v4
@@ -19,13 +21,13 @@ jobs:
 
       - name: Install RSRC
         shell: cmd
-        run: go get github.com/akavel/rsrc
+        run: |
+          go install github.com/akavel/rsrc@latest
+          echo "PATH=%PATH%;%GOPATH%\bin" >> "%GITHUB_ENV%"
 
       - name: Build executable
         shell: cmd
-        run: |
-          rsrc -manifest EverCliping.manifest -ico ./assets/icon.ico -o EverCliping.syso
-          go build -v -a -ldflags "-s -w -H windowsgui" -gcflags="all=-trimpath=${PWD}" -asmflags="all=-trimpath=${PWD}" .
+        run: build
 
       - name: Set version
         shell: cmd

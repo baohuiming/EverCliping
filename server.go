@@ -17,6 +17,7 @@ import (
 )
 
 type guideTemplateParams struct {
+	ShortcutsURL     string
 	ExecPath         string
 	IsAutoRun        string
 	HostName         string
@@ -132,13 +133,14 @@ func guideHandler(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "guide", guideTemplateParams{
-		ExecPath:  os.Args[0],
-		IsAutoRun: isAutoRunText,
-		HostName:  hostname,
-		LocalIP:   GetLocalIP(),
-		Port:      fmt.Sprintf("%d", Port),
-		Password:  Password,
-		Notify:    notify,
+		ShortcutsURL: ShortcutsURL,
+		ExecPath:     os.Args[0],
+		IsAutoRun:    isAutoRunText,
+		HostName:     hostname,
+		LocalIP:      GetLocalIP(),
+		Port:         fmt.Sprintf("%d", Port),
+		Password:     Password,
+		Notify:       notify,
 		ConnectedDevices: func() string {
 			var devices string
 			for device, timestamp := range DeviceStates {

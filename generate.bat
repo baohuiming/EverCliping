@@ -1,0 +1,3 @@
+go install github.com/skip2/go-qrcode/...
+set /P URL=<assets/shortcuts.url
+qrcode -s=100 %URL% > assets/shortcuts.png
